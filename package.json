@@ -1,0 +1,19 @@
+{
+  "type": "module",
+  "name": "chatmii-websocket",
+  "version": "1.0.0",
+  "description": "Serveur WebSocket pour Chatmii (indépendant de Laravel).",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "Félix Lanouette",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "ioredis": "^5.8.0",
+    "node-fetch": "^3.3.2",
+    "ws": "^8.18.3"
+  }
+}
