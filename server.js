@@ -16,7 +16,6 @@ const redis = new Redis({
 
 const wss = new WebSocketServer({ port: WS_PORT });
 const clients = new Map(); // userId → ws
-// salut modif bidon
 // Vérifie le token Sanctum auprès de Laravel
 async function verifyToken(token) {
     try {
