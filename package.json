@@ -5,7 +5,8 @@
   "description": "Serveur WebSocket pour Chatmii (indépendant de Laravel).",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "nodemon server.js"
   },
   "keywords": [],
   "author": "Félix Lanouette",
@@ -15,5 +16,8 @@
     "ioredis": "^5.8.0",
     "node-fetch": "^3.3.2",
     "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
   }
 }
