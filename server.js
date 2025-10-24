@@ -23,13 +23,24 @@ globalRedis.psubscribe("laravel-database-*", (err, count) => {
 });
 
 globalRedis.on("pmessage", (pattern, channel, message) => {
-    console.log("🌍 [GLOBAL REDIS] Message received:", channel);
+    // console.log("🌍 [GLOBAL REDIS] Message received:", channel);
+    console.log("🌍 [GLOBAL REDIS]");
+    console.log("   Pattern:", pattern);
+    console.log("   Channel:", channel);
+    try {
+        const parsed = JSON.parse(message);
+        console.log("   Event:", parsed.event || "(no event)");
+        console.log("   Data:", JSON.stringify(parsed.data, null, 2));
+    } catch {
+        console.log("   Raw message:", message);
+    }
+    console.log("──────────────────────────────────────────────");
 });
 
 // --- TOKEN VALIDATION ---
 async function verifyToken(token) {
     try {
-        const res = await fetch(`${LARAVEL_API_URL}/api/me`, {
+        const res = await fetch(`${LARAVEL_API_URL}/api/ws/me`, {
             method: "GET",
             headers: {
                 "Accept": "application/json",
@@ -132,6 +143,18 @@ wss.on("connection", (ws, req) => {
 
             // Store connection
             clients.set(userId, { ws, redis: userRedis, user });
+
+            try {
+                await fetch(`${LARAVEL_API_URL}/api/ws/mychannels`, {
+                    method: "GET",
+                    headers: {
+                        "Accept": "application/json",
+                        "Authorization": `Bearer ${token}`,
+                    },
+                });
+            } catch (err) {
+                console.error("❌ Error fetching user channels:", err);
+            }
 
             // Confirm authentication to client
             ws.send(JSON.stringify({ success: `Authenticated as ${user.name}`, user }));
