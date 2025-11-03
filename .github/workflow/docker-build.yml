@@ -1,0 +1,47 @@
+name: Chatmii WebSocket Docker Build & Test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Dockerfile'
+      - 'docker-compose.yml'
+      - 'package.json'
+      - 'server.js'
+      - '.github/workflows/docker-build-test.yml'
+  pull_request:
+    branches: [main]
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout repo
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Set up Docker Buildx for advanced builds
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 4. Build the Docker image defined in your docker-compose.yml
+      - name: Build WebSocket image
+        run: docker compose build websocket
+
+      # 5. Start tests
+      - name: Start services for test
+        run: docker compose up -d redis || true
+
+      # 6. Run your WebSocket container and test if it can run
+      - name: Run container for test
+        run: |
+          docker compose up -d websocket
+          echo "Waiting for WebSocket to start..."
+          sleep 10
+          docker ps
+          docker logs websocket-server
+
+      # 8. Stop the test
+      - name: Stop containers
+        run: docker compose down --remove-orphans
