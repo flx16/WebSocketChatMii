@@ -6,10 +6,10 @@ import fetch from "node-fetch";
 // TODO: When receiving Redis events, ensure not to resend events originated by our own user
 
 // --- CONFIGURATION ---
-const WS_PORT = process.env.WS_PORT || 8082;
-const REDIS_HOST = process.env.REDIS_HOST || "redis";
-const REDIS_PORT = process.env.REDIS_PORT || 6379;
-const LARAVEL_API_URL = process.env.LARAVEL_API_URL || "http://localhost:8081";
+const WS_PORT = process.env.WS_PORT;
+const REDIS_HOST = process.env.REDIS_HOST;
+const REDIS_PORT = process.env.REDIS_PORT;
+const LARAVEL_API_URL = process.env.LARAVEL_API_URL;
 
 // --- INITIALIZATION ---
 const wss = new WebSocketServer({ port: WS_PORT });
@@ -110,6 +110,9 @@ wss.on("connection", (ws, req) => {
 
             // --- Handle messages from Redis ---
             userRedis.on("pmessage", async (pattern, channel, message) => {
+                console.log(pattern);
+                console.log(channel);
+                console.log(message);
                 try {
                     const payload = JSON.parse(message);
 

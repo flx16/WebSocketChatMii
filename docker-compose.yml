@@ -3,13 +3,8 @@ services:
     build:
       context: .
     container_name: websocket-server
-    ports:
-      - "8083:8083"
-    environment:
-      - WS_PORT=8083
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - LARAVEL_API_URL=http://laravel.test
+    expose:
+      - '80'
     networks:
       - apichatmii_sail
     volumes:

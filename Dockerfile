@@ -9,5 +9,5 @@ COPY package*.json ./
 RUN npm install
 COPY . .
 
-EXPOSE 8082
+EXPOSE 80
 CMD ["npm", "run", "dev"]
