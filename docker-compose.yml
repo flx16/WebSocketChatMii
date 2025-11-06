@@ -2,13 +2,18 @@ services:
   websocket:
     build:
       context: .
-    container_name: websocket-server
+      dockerfile: Dockerfile
+    working_dir: /app
+    command: ["node", "server.js"]
     expose:
       - '80'
+    env_file:
+      - ./.env
+    volumes:
+      - .:/app:delegated
+      - /app/node_modules
     networks:
       - apichatmii_sail
-    volumes:
-      - .:/app
     restart: unless-stopped
 
 networks:

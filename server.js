@@ -1,18 +1,30 @@
 import "dotenv/config";
-import { WebSocketServer } from "ws";
+import { WebSocketServer, WebSocket } from "ws";
+import http from "http";
 import Redis from "ioredis";
-import fetch from "node-fetch";
 
 // TODO: When receiving Redis events, ensure not to resend events originated by our own user
 
 // --- CONFIGURATION ---
-const WS_PORT = process.env.WS_PORT;
+const WS_PORT = Number(process.env.WS_PORT);
 const REDIS_HOST = process.env.REDIS_HOST;
-const REDIS_PORT = process.env.REDIS_PORT;
+const REDIS_PORT = Number(process.env.REDIS_PORT);
 const LARAVEL_API_URL = process.env.LARAVEL_API_URL;
 
 // --- INITIALIZATION ---
-const wss = new WebSocketServer({ port: WS_PORT });
+const server = http.createServer((req, res) => {
+    if (req.url === "/health") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        return res.end(JSON.stringify({ ok: true }));
+    }
+    res.writeHead(404); res.end();
+});
+
+const wss = new WebSocketServer({ server });
+server.listen(WS_PORT, "0.0.0.0", () => {
+    console.log(`🚀 WS up on ws://0.0.0.0:${WS_PORT}`);
+});
+
 const globalRedis = new Redis({ host: REDIS_HOST, port: REDIS_PORT });
 const clients = new Map(); // userId → { ws, redis, user }
 
@@ -40,7 +52,7 @@ globalRedis.on("pmessage", (pattern, channel, message) => {
 // --- TOKEN VALIDATION ---
 async function verifyToken(token) {
     try {
-        const res = await fetch(`${LARAVEL_API_URL}/api/ws/me`, {
+        const res = await fetch(`${LARAVEL_API_URL}/ws/me`, {
             method: "GET",
             headers: {
                 "Accept": "application/json",
@@ -136,7 +148,7 @@ wss.on("connection", (ws, req) => {
                     }
 
                     // 📦 Forward all other events to the client
-                    if (ws.readyState === ws.OPEN) {
+                    if (ws.readyState === WebSocket.OPEN) {
                         ws.send(JSON.stringify(payload));
                     }
                 } catch (err) {
@@ -148,7 +160,7 @@ wss.on("connection", (ws, req) => {
             clients.set(userId, { ws, redis: userRedis, user });
 
             try {
-                await fetch(`${LARAVEL_API_URL}/api/ws/mychannels`, {
+                await fetch(`${LARAVEL_API_URL}/ws/mychannels`, {
                     method: "GET",
                     headers: {
                         "Accept": "application/json",
@@ -196,4 +208,4 @@ wss.on("connection", (ws, req) => {
     });
 });
 
-console.log(`🚀 WebSocket server running on ws://localhost:${WS_PORT}`);
+console.log(`🚀 WebSocket server running on ws://0.0.0.0:${WS_PORT}`);
