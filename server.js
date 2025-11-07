@@ -77,6 +77,104 @@ async function verifyToken(token) {
     }
 }
 
+// --- BROADCAST USER STATUS ---
+async function broadcastUserStatus(userId, status, userName) {
+    console.log(`📡 Broadcasting status ${status} for user ${userId} (${userName})`);
+
+    // Get user's friends from Laravel API
+    let friendIds = [];
+    try {
+        const client = clients.get(userId.toString());
+        if (!client?.user?.token) {
+            console.log(`No client or token found for user ${userId}`);
+            return;
+        }
+
+        const res = await fetch(`${LARAVEL_API_URL}/users/${userId}/friends`, {
+            headers: {
+                "Accept": "application/json",
+                "Authorization": `Bearer ${client.user.token}`,
+            },
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            friendIds = data.data?.map(f => f.id.toString()) || [];
+            console.log(`   Found ${friendIds.length} friends`);
+        } else {
+            console.log(`Failed to fetch friends: ${res.status}`);
+        }
+    } catch (err) {
+        console.error(`Error fetching friends for user ${userId}:`, err.message);
+        return;
+    }
+
+    // Broadcast to each friend
+    const payload = JSON.stringify({
+        event: "users.update",
+        data: {
+            id: parseInt(userId),
+            username: userName,
+            status: status,
+        },
+    });
+
+    let sentCount = 0;
+    for (const friendId of friendIds) {
+        const friendClient = clients.get(friendId);
+        if (friendClient?.ws?.readyState === WebSocket.OPEN) {
+            friendClient.ws.send(payload);
+            sentCount++;
+        }
+    }
+    console.log(`Broadcast sent to ${sentCount}/${friendIds.length} online friends`);
+}
+
+// --- SYNC ONLINE FRIENDS STATUS ---
+async function syncOnlineFriendsStatus(userId, ws, token) {
+    console.log(`Syncing online friends status for user ${userId}`);
+
+    // Get user's friends from Laravel API
+    try {
+        const res = await fetch(`${LARAVEL_API_URL}/users/${userId}/friends`, {
+            headers: {
+                "Accept": "application/json",
+                "Authorization": `Bearer ${token}`,
+            },
+        });
+
+        if (!res.ok) {
+            console.log(`Failed to fetch friends for sync: ${res.status}`);
+            return;
+        }
+
+        const data = await res.json();
+        const friendIds = data.data?.map(f => f.id.toString()) || [];
+        console.log(`Checking ${friendIds.length} friends for online status`);
+
+        let onlineCount = 0;
+        // Send status update for each friend that is currently online
+        for (const friendId of friendIds) {
+            const friendClient = clients.get(friendId);
+            if (friendClient?.ws?.readyState === WebSocket.OPEN) {
+                const payload = JSON.stringify({
+                    event: "users.update",
+                    data: {
+                        id: parseInt(friendId),
+                        username: friendClient.user.name,
+                        status: "ONLINE",
+                    },
+                });
+                ws.send(payload);
+                onlineCount++;
+            }
+        }
+        console.log(`Sent ${onlineCount} online friend statuses`);
+    } catch (err) {
+        console.error(`Error syncing friends status for user ${userId}:`, err.message);
+    }
+}
+
 // --- 🧩 Subscribe user to channels ---
 async function subscribeUserChannels(user, userRedis, ws, channelIds) {
     console.log(`📡 [${user.name}] Subscribing to ${channelIds.length} channels...`);
@@ -174,6 +272,8 @@ wss.on("connection", (ws, req) => {
             // Confirm authentication to client
             ws.send(JSON.stringify({ success: `Authenticated as ${user.name}`, user }));
 
+            await broadcastUserStatus(userId, "ONLINE", user.name);
+
             // --- Handle messages from client ---
             ws.on("message", (msg) => {
                 try {
@@ -191,6 +291,9 @@ wss.on("connection", (ws, req) => {
             // --- Handle disconnection ---
             ws.on("close", async () => {
                 console.log(`❌ WebSocket disconnected: ${user.name} (#${userId})`);
+
+                await broadcastUserStatus(userId, "OFFLINE", user.name);
+
                 clients.delete(userId);
                 try {
                     await userRedis.punsubscribe();
