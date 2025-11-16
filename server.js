@@ -273,6 +273,8 @@ wss.on("connection", (ws, req) => {
             ws.send(JSON.stringify({ success: `Authenticated as ${user.name}`, user }));
 
             await broadcastUserStatus(userId, "ONLINE", user.name);
+            
+            await syncOnlineFriendsStatus(userId, ws, token);
 
             // --- Handle messages from client ---
             ws.on("message", (msg) => {
