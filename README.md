@@ -17,4 +17,4 @@ Installer ce projet dans wsl
 ## Mettre la nouvelle version l'image docker dans l'API
 
 - Delete les containers, volumes et images (sauf celle du websocket)
-- restart l'api
+- Restart l'api (voir la procédure dans le README de l'API)
