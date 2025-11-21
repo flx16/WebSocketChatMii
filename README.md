@@ -1,9 +1,20 @@
-Procédure de démarage
+# Procédure de démarage
 
 Installer ce projet dans wsl
 
-Démarrer le serveur de l'Api et redis avant ce serveur.
+## Démarrer le serveur
 
-Ensuite démarrer ce serveur avec la commande :
+```bash 
+  docker compose up
+```
 
-```docker compose up```
+## Construire l'image docker
+
+```bash
+  docker build -t websocket-chatmii:latest .
+```
+
+## Mettre la nouvelle version de l'image docker dans l'API
+
+- Delete les containers, volumes et images (sauf celle du websocket)
+- Restart l'api (voir la procédure dans le README de l'API)
