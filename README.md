@@ -14,7 +14,7 @@ Installer ce projet dans wsl
     docker build -t websocket-chatmii:latest.
 ```
 
-## Mettre la nouvelle version l'image docker dans l'API
+## Mettre la nouvelle version de l'image docker dans l'API
 
 - Delete les containers, volumes et images (sauf celle du websocket)
 - Restart l'api (voir la procédure dans le README de l'API)
