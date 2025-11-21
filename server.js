@@ -2,6 +2,12 @@ import "dotenv/config";
 import { WebSocketServer, WebSocket } from "ws";
 import http from "http";
 import Redis from "ioredis";
+import * as Sentry from "@sentry/node"
+
+Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    sendDefaultPii: false,
+});
 
 // TODO: When receiving Redis events, ensure not to resend events originated by our own user
 
