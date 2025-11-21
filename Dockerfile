@@ -5,6 +5,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --include=dev
 COPY server.js ./
+COPY sentryWsContext.js ./
 
 ENV NODE_ENV=development
 

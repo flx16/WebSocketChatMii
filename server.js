@@ -3,10 +3,17 @@ import { WebSocketServer, WebSocket } from "ws";
 import http from "http";
 import Redis from "ioredis";
 import * as Sentry from "@sentry/node"
+import {
+    setupSentryContextForWsConnection,
+    withWsSentryScope,
+} from "./sentryWsContext.js";
+
 
 Sentry.init({
     dsn: process.env.SENTRY_DSN,
     sendDefaultPii: false,
+    release: process.env.SENTRY_RELEASE,
+    environment: process.env.NODE_ENV,
 });
 
 // TODO: When receiving Redis events, ensure not to resend events originated by our own user
@@ -200,6 +207,8 @@ async function subscribeUserChannels(user, userRedis, ws, channelIds) {
 wss.on("connection", (ws, req) => {
     console.log("🌐 New client connected, waiting for authentication...");
 
+    setupSentryContextForWsConnection(ws, req);
+
     let user = null;
     let userRedis = null;
     let userId = null;
@@ -225,6 +234,9 @@ wss.on("connection", (ws, req) => {
             userId = user.id.toString();
             user.token = token;
 
+            ws._sentryMeta = ws._sentryMeta || {};
+            ws._sentryMeta.userId = userId;
+
             console.log(`✅ Authenticated as ${user.name} (#${userId})`);
 
             // --- Redis client for this user ---
@@ -240,24 +252,28 @@ wss.on("connection", (ws, req) => {
                 console.log(pattern);
                 console.log(channel);
                 console.log(message);
-                try {
-                    const payload = JSON.parse(message);
 
-                    // 🧠 RefreshSubList: update subscriptions silently
-                    if (payload.event === "RefreshSubList" && payload.data?.channels) {
-                        const newChannelIds = payload.data.channels;
-                        console.log(`🔁 [${user.name}] RefreshSubList received — re-subscribing to ${newChannelIds.length} channels`);
-                        await subscribeUserChannels(user, userRedis, ws, newChannelIds);
-                        return; // 🚫 Do not forward this event to the client
-                    }
+                withWsSentryScope(ws, () => {
+                    try {
+                        const payload = JSON.parse(message);
 
-                    // 📦 Forward all other events to the client
-                    if (ws.readyState === WebSocket.OPEN) {
-                        ws.send(JSON.stringify(payload));
+                        // 🧠 RefreshSubList: update subscriptions silently
+                        if (payload.event === "RefreshSubList" && payload.data?.channels) {
+                            const newChannelIds = payload.data.channels;
+                            console.log(`🔁 [${user.name}] RefreshSubList received — re-subscribing to ${newChannelIds.length} channels`);
+                            subscribeUserChannels(user, userRedis, ws, newChannelIds);
+                            return;
+                        }
+
+                        // 📦 Forward all other events to the client
+                        if (ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify(payload));
+                        }
+                    } catch (err) {
+                        console.error("❌ Redis message parse error:", err);
+                        Sentry.captureException(err);
                     }
-                } catch (err) {
-                    console.error("❌ Redis message parse error:", err);
-                }
+                });
             });
 
             // Store connection
@@ -284,16 +300,19 @@ wss.on("connection", (ws, req) => {
 
             // --- Handle messages from client ---
             ws.on("message", (msg) => {
-                try {
-                    const parsed = JSON.parse(msg);
-                    if (parsed.type === "ping") {
-                        ws.send(JSON.stringify({ type: "pong" }));
-                    } else {
-                        console.log("📦 Message received from client:", parsed);
+                withWsSentryScope(ws, () => {
+                    try {
+                        const parsed = JSON.parse(msg);
+                        if (parsed.type === "ping") {
+                            ws.send(JSON.stringify({ type: "pong" }));
+                        } else {
+                            console.log("📦 Message received from client:", parsed);
+                        }
+                    } catch (err) {
+                        console.log("💬 Raw message (invalid JSON):", msg);
+                        Sentry.captureException(err);
                     }
-                } catch {
-                    console.log("💬 Raw message:", msg);
-                }
+                });
             });
 
             // --- Handle disconnection ---
@@ -312,7 +331,10 @@ wss.on("connection", (ws, req) => {
                 }
             });
         } catch (err) {
-            console.error("❌ Authentication message error:", err);
+            withWsSentryScope(ws, () => {
+                console.error("❌ Authentication message error:", err);
+                Sentry.captureException(err);
+            });
             ws.send(JSON.stringify({ error: "Bad auth format" }));
             ws.close();
         }
