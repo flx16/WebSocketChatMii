@@ -24,12 +24,30 @@ const REDIS_HOST = process.env.REDIS_HOST;
 const REDIS_PORT = Number(process.env.REDIS_PORT);
 const LARAVEL_API_URL = process.env.LARAVEL_API_URL;
 
+// --- STATE ---
+const globalRedis = new Redis({ host: REDIS_HOST, port: REDIS_PORT });
+const clients = new Map(); // userId → { ws, redis, user }
+
 // --- INITIALIZATION ---
 const server = http.createServer((req, res) => {
     if (req.url === "/health") {
+        const memoryUsage = process.memoryUsage();
         res.writeHead(200, { "Content-Type": "application/json" });
-        return res.end(JSON.stringify({ ok: true }));
+        return res.end(JSON.stringify({
+            ok: true,
+            version: "1.1.0",
+            memory_used_mb: parseFloat((memoryUsage.heapUsed / 1048576).toFixed(2)), // bytes -> MB (1024²), same as dividing by 1024 twice
+            uptime_seconds: Math.floor(process.uptime())
+        }));
     }
+
+    if (req.url === "/stats") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        return res.end(JSON.stringify({
+            connected_clients: clients.size
+        }));
+    }
+
     res.writeHead(404); res.end();
 });
 
@@ -37,9 +55,6 @@ const wss = new WebSocketServer({ server });
 server.listen(WS_PORT, "0.0.0.0", () => {
     console.log(`🚀 WS up on ws://0.0.0.0:${WS_PORT}`);
 });
-
-const globalRedis = new Redis({ host: REDIS_HOST, port: REDIS_PORT });
-const clients = new Map(); // userId → { ws, redis, user }
 
 // --- GLOBAL REDIS LOGGING ---
 globalRedis.psubscribe("laravel-database-*", (err, count) => {
